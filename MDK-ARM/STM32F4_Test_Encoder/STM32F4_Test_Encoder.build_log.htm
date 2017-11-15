@@ -1,0 +1,68 @@
+<html>
+<body>
+<pre>
+<h1>µVision Build Log</h1>
+<h2>Tool Versions:</h2>
+IDE-Version: µVision V5.24.2.0
+Copyright (C) 2017 ARM Ltd and ARM Germany GmbH. All rights reserved.
+License Information: tri phan, minhtri, LIC=VGX30-BNL42-SYIVA-1PB8N-65JI2-NDTLS
+ 
+Tool Versions:
+Toolchain:       MDK-ARM Plus  Version: 5.24.1
+Toolchain Path:  D:\Software\Keil_v5\ARM\ARMCC\Bin
+C Compiler:      Armcc.exe V5.06 update 5 (build 528)
+Assembler:       Armasm.exe V5.06 update 5 (build 528)
+Linker/Locator:  ArmLink.exe V5.06 update 5 (build 528)
+Library Manager: ArmAr.exe V5.06 update 5 (build 528)
+Hex Converter:   FromElf.exe V5.06 update 5 (build 528)
+CPU DLL:         SARMCM3.DLL V5.24.1
+Dialog DLL:      DCM.DLL V1.16.0.0
+Target DLL:      STLink\ST-LINKIII-KEIL_SWO.dll V3.0.1.0
+Dialog DLL:      TCM.DLL V1.32.0.0
+ 
+<h2>Project:</h2>
+D:\OneDrive\workspace_keil\STM32F4_Test_Encoder\MDK-ARM\STM32F4_Test_Encoder.uvprojx
+Project File Date:  11/15/2017
+
+<h2>Output:</h2>
+*** Using Compiler 'V5.06 update 5 (build 528)', folder: 'D:\Software\Keil_v5\ARM\ARMCC\Bin'
+Build target 'STM32F4_Test_Encoder'
+compiling main.c...
+../Inc/PID.h(35): warning:  #1295-D: Deprecated declaration pid_get_error - give arg types
+  extern float pid_get_error();
+../Inc/PID.h(36): warning:  #1295-D: Deprecated declaration pid_reset - give arg types
+  extern void pid_reset();
+../Inc/PID.h(40): warning:  #1-D: last line of file ends without a newline
+  #endif /* WALLFOLLOW_PID_H_ */
+../Src/main.c(88): warning:  #223-D: function "strlen" declared implicitly
+    HAL_UART_Transmit(&huart2, log, strlen(log), 1000);
+../Src/main.c: 4 warnings, 0 errors
+linking...
+Program Size: Code=7460 RO-data=448 RW-data=68 ZI-data=1380  
+"STM32F4_Test_Encoder\STM32F4_Test_Encoder.axf" - 0 Error(s), 4 Warning(s).
+
+<h2>Software Packages used:</h2>
+
+Package Vendor: ARM
+                http://www.keil.com/pack/ARM.CMSIS.5.0.1.pack
+                ARM.CMSIS.5.0.1
+                CMSIS (Cortex Microcontroller Software Interface Standard)
+   * Component: CORE Version: 5.0.1
+
+Package Vendor: Keil
+                http://www.keil.com/pack/Keil.STM32F4xx_DFP.2.11.0.pack
+                Keil.STM32F4xx_DFP.2.11.0
+                STMicroelectronics STM32F4 Series Device Support, Drivers and Examples
+
+<h2>Collection of Component include folders:</h2>
+  .\RTE\_STM32F4_Test_Encoder
+  D:\Software\Keil_v5\ARM\PACK\ARM\CMSIS\5.0.1\CMSIS\Include
+  D:\Software\Keil_v5\ARM\PACK\Keil\STM32F4xx_DFP\2.11.0\Drivers\CMSIS\Device\ST\STM32F4xx\Include
+
+<h2>Collection of Component Files used:</h2>
+
+   * Component: ARM::CMSIS:CORE:5.0.1
+Build Time Elapsed:  00:00:05
+</pre>
+</body>
+</html>
