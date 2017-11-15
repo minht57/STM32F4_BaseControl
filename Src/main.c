@@ -54,14 +54,16 @@ UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
-volatile int16_t i16_counter = 0;
+volatile int16_t i16_Counter_Left = 0, i16_Counter_Right = 0;
 uint8_t ui8_BufLog[50];
-float f_Target_Left = 400.0;
-float f_Error_Left;
-float f_PIDResult_Left;
-float f_PIDScale_Left;
+float f_Target_Left = 400.0, f_Target_Right = 400.0;
+float f_Error_Left, f_Error_Right;
+float f_PIDResult_Left, f_PIDResult_Right;
+float f_PIDScale_Left, f_PIDScale_Right;
 
 PID_PARAMETERS PID_ParaMotor_Left = {.Kp = 0.10, .Kd = 0.0, .Ki = 0.00,
+             .Ts = 0.020, .PID_Saturation = 95, .e_=0, .e__=0, .u_=0};
+PID_PARAMETERS PID_ParaMotor_Right = {.Kp = 0.10, .Kd = 0.0, .Ki = 0.00,
              .Ts = 0.020, .PID_Saturation = 95, .e_=0, .e__=0, .u_=0};
 /* USER CODE END PV */
 
@@ -97,19 +99,25 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   if(htim->Instance == htim3.Instance)
   {
-    i16_counter = __HAL_TIM_GetCounter(&htim2);
+    i16_Counter_Left = __HAL_TIM_GetCounter(&htim2);
+    i16_Counter_Right = __HAL_TIM_GetCounter(&htim5);
     __HAL_TIM_SetCounter(&htim2, 0);
+    __HAL_TIM_SetCounter(&htim5, 0);
     
     
-    f_Error_Left = f_Target_Left - (float)i16_counter;
+    f_Error_Left = f_Target_Left - (float)i16_Counter_Left;
     f_PIDResult_Left = pid_process(&PID_ParaMotor_Left, f_Error_Left);
     
-    f_PIDScale_Left = (f_PIDResult_Left + 100)/2;
+    f_Error_Right = f_Target_Right - (float)i16_Counter_Right;
+    f_PIDResult_Right = pid_process(&PID_ParaMotor_Right, f_Error_Right);
     
-    __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_1, 50);
+    f_PIDScale_Left = (f_PIDResult_Left + 100)/2;
+    f_PIDScale_Right = (f_PIDResult_Right + 100)/2;
+    
+    __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_1, (int8_t)f_PIDScale_Right);
     __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_2, (int8_t)f_PIDScale_Left);
     
-    sprintf((char*) ui8_BufLog,"%d \t %d\n\r",(int16_t) f_Target_Left, i16_counter);
+    sprintf((char*) ui8_BufLog,"%d \t %d\n\r",(int16_t) f_Target_Right, i16_Counter_Right);
     //sprintf((char*) ui8_BufLog,"%d \t %d \t %d \t %d\n\r", i16_counter, (int16_t)f_Error_Left, (int16_t)f_PIDResult_Left, (int16_t)f_PIDScale_Left);
     UART_Log(ui8_BufLog);
   }
@@ -149,6 +157,7 @@ int main(void)
 
   /* USER CODE BEGIN 2 */
   HAL_TIM_Base_Start(&htim2);
+  HAL_TIM_Base_Start(&htim5);
   HAL_TIM_Base_Start_IT(&htim3);
   HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_2);
