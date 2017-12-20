@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Project>
-<ProjectName>D:\OneDrive\workspace_keil\STM32F4_Test_Encoder\\STM32F4_Test_Encoder</ProjectName>
+<ProjectName>D:\OneDrive\workspace_keil\STM32F4_BaseControl\\STM32F4_Test_Encoder</ProjectName>
 <CMSIS>..\Drivers\CMSIS</CMSIS>
 <HAL_Driver>D:\Software\STMicroelectronics\STM32Cube\Repository\STM32Cube_FW_F4_V1.18.0\Drivers\CMSIS</HAL_Driver>
 

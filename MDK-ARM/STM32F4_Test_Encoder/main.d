@@ -30,4 +30,7 @@ stm32f4_test_encoder\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_p
 stm32f4_test_encoder\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim.h
 stm32f4_test_encoder\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim_ex.h
 stm32f4_test_encoder\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h
+stm32f4_test_encoder\main.o: D:\Software\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h
+stm32f4_test_encoder\main.o: D:\Software\Keil_v5\ARM\ARMCC\Bin\..\include\string.h
 stm32f4_test_encoder\main.o: ../Inc/PID.h
+stm32f4_test_encoder\main.o: ../Inc/encoder.h
