@@ -59,7 +59,7 @@ DMA_HandleTypeDef hdma_usart2_rx;
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
-#define MAX_BUF_DATA_RECV   200
+#define MAX_BUF_DATA_RECV   20
 
 static volatile int16_t i16_Counter_Left = 0, i16_Counter_Right = 0;
 static volatile int16_t i16_Counter_Left_LPF = 0, i16_Counter_Right_LPF = 0;
@@ -69,6 +69,9 @@ uint8_t UART_Buf[MAX_BUF_DATA_RECV];
 uint16_t UART_ReadIdx = 0;
 uint16_t UART_WriteIdx = 0;
 uint16_t u16_avail_byte = 0;
+int32_t i32_countZeroCmd = 0;
+
+int debug = 0;
 
 //float f_Target_Left = 400.0, f_Target_Right = 400.0;
 int16_t i16_Error_Left, i16_Error_Right;
@@ -78,10 +81,11 @@ int16_t i16_PIDScale_Left, i16_PIDScale_Right;
 int16_t i16_Pulse_Target_Left = 0, i16_Pulse_Target_Right = 0;
 
 uint8_t count_reset = 0;
+uint8_t count_send = 0;
 
-PID_PARAMETERS PID_ParaMotor_Left = {.Kp = 0.010, .Kd = 0.0, .Ki = 0.00,
+PID_PARAMETERS PID_ParaMotor_Left = {.Kp = 0.020, .Kd = 0.0, .Ki = 0.005,
              .Ts = 0.020, .PID_Saturation = 450, .e_=0, .e__=0, .u_=0};
-PID_PARAMETERS PID_ParaMotor_Right = {.Kp = 0.010, .Kd = 0.0, .Ki = 0.00,
+PID_PARAMETERS PID_ParaMotor_Right = {.Kp = 0.020, .Kd = 0.0, .Ki = 0.005,
              .Ts = 0.020, .PID_Saturation = 450, .e_=0, .e__=0, .u_=0};
 
 LPF_PARAMETERS LPF_EncoderLeft = {.counter = 0, .result = 0, .alpha = 0.8};
@@ -89,10 +93,10 @@ LPF_PARAMETERS LPF_EncoderRight = {.counter = 0, .result = 0, .alpha = 0.8};
 
 TARGET_VELOCITY_PARAMETERS Target_Velocity = {.angle_velocity = 0, .linear_velocity = 0,
                                               .i16_Pulse_Left = 0, .i16_Pulse_Right = 0,
-                                              .radius = 0.035, .length = 0.2, .ratio = 0.5};
+                                              .radius = 0.035, .length = (0.3*1), .ratio = 1};
 TARGET_VELOCITY_PARAMETERS Result_Velocity = {.angle_velocity = 0, .linear_velocity = 0,
                                               .i16_Pulse_Left = 0, .i16_Pulse_Right = 0,
-                                              .radius = 0.035, .length = 0.2, .ratio = 0.5};
+                                              .radius = 0.035, .length = (0.3*1), .ratio = 1};
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -110,7 +114,7 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
 
 /* USER CODE BEGIN PFP */
 /* Private function prototypes -----------------------------------------------*/
-void UART_GetCmd(void);
+int8_t UART_GetCmd(void);
 /* USER CODE END PFP */
 
 /* USER CODE BEGIN 0 */
@@ -144,7 +148,21 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
         count_reset++;
     }
 
-    UART_GetCmd();
+    if(UART_GetCmd() == 0)
+    {
+      i32_countZeroCmd++;
+    }
+    else
+    {
+      i32_countZeroCmd = 0;
+    }
+    
+    if(i32_countZeroCmd > 50)
+    {
+      Target_Velocity.linear_velocity = 0;
+      Target_Velocity.angle_velocity = 0;
+      Encoder_CalVelocity(&Target_Velocity);
+    }
     
     i16_Counter_Left -= 25000;
     i16_Counter_Right -= 25000;
@@ -161,8 +179,31 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     f_PIDResult_Right = pid_process(&PID_ParaMotor_Right, (float)i16_Error_Right);
     
     i16_PIDScale_Left = (int16_t)((f_PIDResult_Left + 500)/2);
+    if((i16_PIDScale_Left>51)&&(i16_PIDScale_Left<55))
+    {
+      i16_PIDScale_Left=55;
+    }
+    else if((i16_PIDScale_Left>45)&&(i16_PIDScale_Left<49))
+    {
+      i16_PIDScale_Left=45;
+    }
+    else if((i16_PIDScale_Left>=49)&&(i16_PIDScale_Left<=51))
+    {
+      i16_PIDScale_Left=50;
+    }
     i16_PIDScale_Right = (int16_t)((f_PIDResult_Right + 500)/2);
-    
+    if((i16_PIDScale_Right>51)&&(i16_PIDScale_Right<55))
+    {
+      i16_PIDScale_Right=55;
+    }
+    else if((i16_PIDScale_Right>45)&&(i16_PIDScale_Right<49))
+    {
+      i16_PIDScale_Right=45;
+    }
+    else if((i16_PIDScale_Right>=49)&&(i16_PIDScale_Right<=51))
+    {
+      i16_PIDScale_Right=50;
+    }
     __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_1, i16_PIDScale_Left);
     __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_2, i16_PIDScale_Right);
     Result_Velocity.i16_Pulse_Left = i16_Counter_Left_LPF;
@@ -170,15 +211,36 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
     Encoder_ReCalVelocity(&Result_Velocity);
     
-    sprintf((char*) ui8_BufLog,"[%f,%f]\n\r", Result_Velocity.linear_velocity, Result_Velocity.angle_velocity);
-//    sprintf((char*) ui8_BufLog,"%f \t %f \t %f \t %f\n\r",Target_Velocity.linear_velocity*1000,Result_Velocity.linear_velocity*1000,
-//                                                          Target_Velocity.angle_velocity*1000, Result_Velocity.angle_velocity*1000);
-    
-    
-//    sprintf((char*) ui8_BufLog,"%d \t %d\n\r",(int16_t) f_Target_Right, i16_Counter_Right);
-//    sprintf((char*) ui8_BufLog,"%d \t %d \t %d \t %d\n\r", i16_Error_Left, (int16_t)i16_PIDScale_Left, (int16_t)i16_Error_Right, (int16_t)i16_PIDScale_Right);
-//    sprintf((char*) ui8_BufLog,"%d \t %d \t %d \t %d\n\r",i16_Counter_Left, i16_Counter_Left_LPF, i16_Counter_Right, i16_Counter_Right_LPF);
-    UART_Log(ui8_BufLog);
+    if(count_send > 10)
+    {
+      count_send = 0;
+      if(debug) 
+      {
+      sprintf((char*) ui8_BufLog,"%d \t %d \t %d \t %d\n\r",(int16_t)(Target_Velocity.linear_velocity*1000),
+                                                            (int16_t)(Result_Velocity.linear_velocity*1000),
+                                                            (int16_t)(Target_Velocity.angle_velocity*1000),
+                                                            (int16_t)(Result_Velocity.angle_velocity*1000));
+      }
+      else
+      {
+        sprintf((char*) ui8_BufLog,"[%f,%f]\n\r", Result_Velocity.linear_velocity, Result_Velocity.angle_velocity);
+      }
+  //    sprintf((char*) ui8_BufLog,"%f \t %f \t %f \t %f\n\r",Target_Velocity.linear_velocity*1000,Result_Velocity.linear_velocity*1000,
+  //                                                          Target_Velocity.angle_velocity*1000, Result_Velocity.angle_velocity*1000);
+//      sprintf((char*) ui8_BufLog,"%d \t %d \t %d \t %d\n\r",(int16_t)(Target_Velocity.linear_velocity*1000),
+//                                                            (int16_t)(Result_Velocity.linear_velocity*1000),
+//                                                            (int16_t)(Target_Velocity.angle_velocity*1000),
+//                                                            (int16_t)(Result_Velocity.angle_velocity*1000));
+      
+//      sprintf((char*) ui8_BufLog,"%d \t %d\n\r", Target_Velocity.i16_Pulse_Right, i16_Counter_Right_LPF);
+//      sprintf((char*) ui8_BufLog,"%d \t %d \t %d \t %d\n\r", i16_Error_Left, (int16_t)i16_PIDScale_Left, (int16_t)i16_Error_Right, (int16_t)i16_PIDScale_Right);
+//      sprintf((char*) ui8_BufLog,"%d \t %d \t %d \t %d\n\r",i16_Counter_Left, i16_Counter_Left_LPF, i16_Counter_Right, i16_Counter_Right_LPF);
+      UART_Log(ui8_BufLog);
+    }
+    else
+    {
+      count_send++;
+    }
   }
 }
 
@@ -220,7 +282,7 @@ void UART_C1101_Read(uint8_t * buf, uint16_t len)
     }
 }
 
-void UART_GetCmd(void)
+int8_t UART_GetCmd(void)
 {
   static int8_t Buf_temp[20];
   static int8_t i8_HaveCmd = 0;
@@ -235,7 +297,6 @@ void UART_GetCmd(void)
     {
       i8_InProcessing = 0;
       //
-      
       cToken = strtok((char*)Buf_temp, ",");
       if(cToken != NULL)
       {
@@ -246,7 +307,92 @@ void UART_GetCmd(void)
               Target_Velocity.angle_velocity = atof(cToken);
           }
       }
+      if(Target_Velocity.linear_velocity > 0.5)
+      {
+        Target_Velocity.linear_velocity = 0.5;
+      }
+      if(Target_Velocity.angle_velocity > 3)
+      {
+        Target_Velocity.angle_velocity = 3;
+      }
       Encoder_CalVelocity(&Target_Velocity);
+      HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_15);
+      return 1;
+    }
+    else if(u8_Temp == '}')
+    {
+      i8_InProcessing = 0;
+      cToken = strtok((char*)Buf_temp, ",");
+      if(cToken != NULL)
+      {
+        //Set Ki
+        if(strcmp(cToken, "il") == 0)
+        {
+          cToken = strtok(NULL,",");
+          if(cToken != NULL)
+          {
+            PID_ParaMotor_Left.Ki = atof(cToken);
+          }
+        }
+        else if(strcmp(cToken, "ir") == 0)
+        {
+          cToken = strtok(NULL,",");
+          if(cToken != NULL)
+          {
+            PID_ParaMotor_Right.Ki = atof(cToken);
+          }
+        }
+        //Set Kp
+        else if(strcmp(cToken, "pl") == 0)
+        {
+          cToken = strtok(NULL,",");
+          if(cToken != NULL)
+          {
+            PID_ParaMotor_Left.Kp = atof(cToken);
+          }
+        }
+        else if(strcmp(cToken, "pr") == 0)
+        {
+          cToken = strtok(NULL,",");
+          if(cToken != NULL)
+          {
+            PID_ParaMotor_Right.Kp = atof(cToken);
+          }
+        }
+        //Set Kd
+        else if(strcmp(cToken, "dl") == 0)
+        {
+          cToken = strtok(NULL,",");
+          if(cToken != NULL)
+          {
+            PID_ParaMotor_Left.Kd = atof(cToken);
+          }
+        }
+        else if(strcmp(cToken, "dr") == 0)
+        {
+          cToken = strtok(NULL,",");
+          if(cToken != NULL)
+          {
+            PID_ParaMotor_Right.Kd = atof(cToken);
+          }
+        }
+        else if(strcmp(cToken, "?") == 0)
+        {
+          sprintf((char*) ui8_BufLog,"L: [Kp:%f] [Ki:%f] [Kd:%f]\n\rR: [Kp:%f] [Ki:%f] [Kd:%f]\n\r",
+            PID_ParaMotor_Left.Kp, PID_ParaMotor_Left.Ki, PID_ParaMotor_Left.Kd,
+            PID_ParaMotor_Right.Kp, PID_ParaMotor_Right.Ki, PID_ParaMotor_Right.Kd);
+          UART_Log(ui8_BufLog);
+        }
+//        else if(strcmp(cToken, "debug") == 0)
+//        {
+//          debug = 1;
+//        }
+//        else if(strcmp(cToken, "0debug") == 0)
+//        {
+//          debug = 0;
+//        }
+      }
+      HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_13);
       break;
     }
     if(i8_InProcessing)
@@ -258,7 +404,13 @@ void UART_GetCmd(void)
       i8_Idx = 0;
       i8_InProcessing = 1;
     }
+    else if(u8_Temp == '{')
+    {
+      i8_Idx = 0;
+      i8_InProcessing = 2;
+    }
   }
+  return 0;
 }
 /* USER CODE END 0 */
 

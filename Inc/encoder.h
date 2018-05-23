@@ -14,7 +14,8 @@
 
 #include <stdint.h>
 
-#define PULSE_ENCODER_PER_ROUND   3250
+#define PULSE_ENCODER_PER_ROUND   (3250*4)
+#define T_SAMPLE                  (0.02)
 
 typedef struct {
   int16_t counter;

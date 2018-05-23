@@ -52,8 +52,7 @@ float pid_process(PID_PARAMETERS* pid_parameter,float error)
 	{
 		pid_parameter->u = -pid_parameter->PID_Saturation;
 	}
-
-	return pid_parameter->u;
+  return pid_parameter->u;
 }
 
 /**
