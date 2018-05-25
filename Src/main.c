@@ -1,7 +1,8 @@
+
 /**
   ******************************************************************************
-  * File Name          : main.c
-  * Description        : Main program body
+  * @file           : main.c
+  * @brief          : Main program body
   ******************************************************************************
   ** This notice applies to any and all portions of this file
   * that are not between comment pairs USER CODE BEGIN and
@@ -9,7 +10,7 @@
   * inserted by the user or by software development tools
   * are owned by their respective copyright owners.
   *
-  * COPYRIGHT(c) 2017 STMicroelectronics
+  * COPYRIGHT(c) 2018 STMicroelectronics
   *
   * Redistribution and use in source and binary forms, with or without modification,
   * are permitted provided that the following conditions are met:
@@ -35,7 +36,6 @@
   *
   ******************************************************************************
   */
-
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "stm32f4xx_hal.h"
@@ -48,10 +48,8 @@
 /* USER CODE END Includes */
 
 /* Private variables ---------------------------------------------------------*/
-TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim4;
-TIM_HandleTypeDef htim5;
 
 UART_HandleTypeDef huart2;
 DMA_HandleTypeDef hdma_usart2_tx;
@@ -61,8 +59,6 @@ DMA_HandleTypeDef hdma_usart2_rx;
 /* Private variables ---------------------------------------------------------*/
 #define MAX_BUF_DATA_RECV   20
 
-static volatile int16_t i16_Counter_Left = 0, i16_Counter_Right = 0;
-static volatile int16_t i16_Counter_Left_LPF = 0, i16_Counter_Right_LPF = 0;
 uint8_t ui8_BufLog[50];
 uint8_t u8_rec_data;
 uint8_t UART_Buf[MAX_BUF_DATA_RECV];
@@ -71,16 +67,9 @@ uint16_t UART_WriteIdx = 0;
 uint16_t u16_avail_byte = 0;
 int32_t i32_countZeroCmd = 0;
 
-int debug = 0;
+int16_t i16_CountPulseLeft, i16_CountPulseRight;
 
-//float f_Target_Left = 400.0, f_Target_Right = 400.0;
-int16_t i16_Error_Left, i16_Error_Right;
-float f_PIDResult_Left, f_PIDResult_Right;
-int16_t i16_PIDScale_Left, i16_PIDScale_Right;
-
-int16_t i16_Pulse_Target_Left = 0, i16_Pulse_Target_Right = 0;
-
-uint8_t count_reset = 0;
+uint16_t count_reset = 0;
 uint8_t count_send = 0;
 
 PID_PARAMETERS PID_ParaMotor_Left = {.Kp = 0.020, .Kd = 0.0, .Ki = 0.005,
@@ -106,11 +95,6 @@ static void MX_DMA_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_TIM4_Init(void);
 static void MX_TIM3_Init(void);
-static void MX_TIM2_Init(void);
-static void MX_TIM5_Init(void);
-
-void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
-                                
 
 /* USER CODE BEGIN PFP */
 /* Private function prototypes -----------------------------------------------*/
@@ -134,20 +118,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   if(htim->Instance == htim3.Instance)
   {
-    i16_Counter_Left = __HAL_TIM_GetCounter(&htim2);
-    i16_Counter_Right = __HAL_TIM_GetCounter(&htim5);
-    __HAL_TIM_SetCounter(&htim2, 25000);
-    __HAL_TIM_SetCounter(&htim5, 25000);
-    
-    if (count_reset >= 100)
-    {
-        HAL_GPIO_WritePin (GPIOE, GPIO_PIN_7 | GPIO_PIN_9, 1);
-    }
-    else 
-    {
-        count_reset++;
-    }
-
     if(UART_GetCmd() == 0)
     {
       i32_countZeroCmd++;
@@ -159,72 +129,19 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     
     if(i32_countZeroCmd > 50)
     {
-      Target_Velocity.linear_velocity = 0;
+      Target_Velocity.linear_velocity = 0.05;
       Target_Velocity.angle_velocity = 0;
-      Encoder_CalVelocity(&Target_Velocity);
+      Step_CalVelocity(&Target_Velocity);
     }
-    
-    i16_Counter_Left -= 25000;
-    i16_Counter_Right -= 25000;
-    
-    i16_Counter_Left_LPF = LPF_Encoder(&LPF_EncoderLeft, i16_Counter_Left);
-    i16_Counter_Right_LPF = LPF_Encoder(&LPF_EncoderRight, i16_Counter_Right);
-    
-//    i16_Error_Left = i16_Pulse_Target_Left - i16_Counter_Left_LPF;
-    i16_Error_Left = Target_Velocity.i16_Pulse_Left - i16_Counter_Left_LPF;
-    f_PIDResult_Left = pid_process(&PID_ParaMotor_Left, (float)i16_Error_Left);
-    
-//    i16_Error_Right = i16_Pulse_Target_Right - i16_Counter_Right_LPF;
-    i16_Error_Right = Target_Velocity.i16_Pulse_Right - i16_Counter_Right_LPF;
-    f_PIDResult_Right = pid_process(&PID_ParaMotor_Right, (float)i16_Error_Right);
-    
-    i16_PIDScale_Left = (int16_t)((f_PIDResult_Left + 500)/2);
-    if((i16_PIDScale_Left>51)&&(i16_PIDScale_Left<55))
-    {
-      i16_PIDScale_Left=55;
-    }
-    else if((i16_PIDScale_Left>45)&&(i16_PIDScale_Left<49))
-    {
-      i16_PIDScale_Left=45;
-    }
-    else if((i16_PIDScale_Left>=49)&&(i16_PIDScale_Left<=51))
-    {
-      i16_PIDScale_Left=50;
-    }
-    i16_PIDScale_Right = (int16_t)((f_PIDResult_Right + 500)/2);
-    if((i16_PIDScale_Right>51)&&(i16_PIDScale_Right<55))
-    {
-      i16_PIDScale_Right=55;
-    }
-    else if((i16_PIDScale_Right>45)&&(i16_PIDScale_Right<49))
-    {
-      i16_PIDScale_Right=45;
-    }
-    else if((i16_PIDScale_Right>=49)&&(i16_PIDScale_Right<=51))
-    {
-      i16_PIDScale_Right=50;
-    }
-    __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_1, i16_PIDScale_Left);
-    __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_2, i16_PIDScale_Right);
-    Result_Velocity.i16_Pulse_Left = i16_Counter_Left_LPF;
-    Result_Velocity.i16_Pulse_Right = i16_Counter_Right_LPF;
-
-    Encoder_ReCalVelocity(&Result_Velocity);
     
     if(count_send > 10)
     {
       count_send = 0;
-      if(debug) 
-      {
+      
       sprintf((char*) ui8_BufLog,"%d \t %d \t %d \t %d\n\r",(int16_t)(Target_Velocity.linear_velocity*1000),
                                                             (int16_t)(Result_Velocity.linear_velocity*1000),
                                                             (int16_t)(Target_Velocity.angle_velocity*1000),
                                                             (int16_t)(Result_Velocity.angle_velocity*1000));
-      }
-      else
-      {
-        sprintf((char*) ui8_BufLog,"[%f,%f]\n\r", Result_Velocity.linear_velocity, Result_Velocity.angle_velocity);
-      }
   //    sprintf((char*) ui8_BufLog,"%f \t %f \t %f \t %f\n\r",Target_Velocity.linear_velocity*1000,Result_Velocity.linear_velocity*1000,
   //                                                          Target_Velocity.angle_velocity*1000, Result_Velocity.angle_velocity*1000);
 //      sprintf((char*) ui8_BufLog,"%d \t %d \t %d \t %d\n\r",(int16_t)(Target_Velocity.linear_velocity*1000),
@@ -240,6 +157,77 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     else
     {
       count_send++;
+    }
+  }
+  else if (htim->Instance == htim4.Instance)
+  {
+    if (count_reset >= 1000)
+    {      
+      if(Target_Velocity.i16_Pulse_Left > 0)
+      {
+        HAL_GPIO_WritePin(GPIOE, GPIO_PIN_7, STEP_FORWARD_LEFT);
+        if(i16_CountPulseLeft > Target_Velocity.i16_Pulse_Left)
+        {
+          i16_CountPulseLeft = 0;
+          HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_6);
+        }
+        else
+        {
+          i16_CountPulseLeft++;
+        }
+      }
+      else if(Target_Velocity.i16_Pulse_Left < 0)
+      {
+        HAL_GPIO_WritePin(GPIOE, GPIO_PIN_7, STEP_BACK_LEFT);
+        if(i16_CountPulseLeft > -Target_Velocity.i16_Pulse_Left)
+        {
+          i16_CountPulseLeft = 0;
+          HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_6);
+        }
+        else
+        {
+          i16_CountPulseLeft++;
+        }
+      }
+      else
+      {
+        HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6, 0);
+      }
+      
+      if(Target_Velocity.i16_Pulse_Right > 0)
+      {
+        HAL_GPIO_WritePin(GPIOE, GPIO_PIN_9, STEP_FORWARD_RIGHT);
+        if(i16_CountPulseRight > Target_Velocity.i16_Pulse_Right)
+        {
+          i16_CountPulseRight = 0;
+          HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_7);
+        }
+        else
+        {
+          i16_CountPulseRight++;
+        }
+      }
+      else if(Target_Velocity.i16_Pulse_Right < 0)
+      {
+        HAL_GPIO_WritePin(GPIOE, GPIO_PIN_9, STEP_BACK_RIGHT);
+        if(i16_CountPulseRight > -Target_Velocity.i16_Pulse_Right)
+        {
+          i16_CountPulseRight = 0;
+          HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_7);
+        }
+        else
+        {
+          i16_CountPulseRight++;
+        }
+      }
+      else
+      {
+        HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, 0);
+      }
+    }
+    else 
+    {
+        count_reset++;
     }
   }
 }
@@ -315,86 +303,15 @@ int8_t UART_GetCmd(void)
       {
         Target_Velocity.angle_velocity = 3;
       }
-      Encoder_CalVelocity(&Target_Velocity);
+      else if(Target_Velocity.angle_velocity < -3)
+      {
+        Target_Velocity.angle_velocity = -3;
+      }
+      Step_CalVelocity(&Target_Velocity);
       HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_15);
       return 1;
     }
-    else if(u8_Temp == '}')
-    {
-      i8_InProcessing = 0;
-      cToken = strtok((char*)Buf_temp, ",");
-      if(cToken != NULL)
-      {
-        //Set Ki
-        if(strcmp(cToken, "il") == 0)
-        {
-          cToken = strtok(NULL,",");
-          if(cToken != NULL)
-          {
-            PID_ParaMotor_Left.Ki = atof(cToken);
-          }
-        }
-        else if(strcmp(cToken, "ir") == 0)
-        {
-          cToken = strtok(NULL,",");
-          if(cToken != NULL)
-          {
-            PID_ParaMotor_Right.Ki = atof(cToken);
-          }
-        }
-        //Set Kp
-        else if(strcmp(cToken, "pl") == 0)
-        {
-          cToken = strtok(NULL,",");
-          if(cToken != NULL)
-          {
-            PID_ParaMotor_Left.Kp = atof(cToken);
-          }
-        }
-        else if(strcmp(cToken, "pr") == 0)
-        {
-          cToken = strtok(NULL,",");
-          if(cToken != NULL)
-          {
-            PID_ParaMotor_Right.Kp = atof(cToken);
-          }
-        }
-        //Set Kd
-        else if(strcmp(cToken, "dl") == 0)
-        {
-          cToken = strtok(NULL,",");
-          if(cToken != NULL)
-          {
-            PID_ParaMotor_Left.Kd = atof(cToken);
-          }
-        }
-        else if(strcmp(cToken, "dr") == 0)
-        {
-          cToken = strtok(NULL,",");
-          if(cToken != NULL)
-          {
-            PID_ParaMotor_Right.Kd = atof(cToken);
-          }
-        }
-        else if(strcmp(cToken, "?") == 0)
-        {
-          sprintf((char*) ui8_BufLog,"L: [Kp:%f] [Ki:%f] [Kd:%f]\n\rR: [Kp:%f] [Ki:%f] [Kd:%f]\n\r",
-            PID_ParaMotor_Left.Kp, PID_ParaMotor_Left.Ki, PID_ParaMotor_Left.Kd,
-            PID_ParaMotor_Right.Kp, PID_ParaMotor_Right.Ki, PID_ParaMotor_Right.Kd);
-          UART_Log(ui8_BufLog);
-        }
-//        else if(strcmp(cToken, "debug") == 0)
-//        {
-//          debug = 1;
-//        }
-//        else if(strcmp(cToken, "0debug") == 0)
-//        {
-//          debug = 0;
-//        }
-      }
-      HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_13);
-      break;
-    }
+    HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_13);
     if(i8_InProcessing)
     {
       Buf_temp[i8_Idx++] = u8_Temp;
@@ -404,19 +321,18 @@ int8_t UART_GetCmd(void)
       i8_Idx = 0;
       i8_InProcessing = 1;
     }
-    else if(u8_Temp == '{')
-    {
-      i8_Idx = 0;
-      i8_InProcessing = 2;
-    }
   }
   return 0;
 }
 /* USER CODE END 0 */
 
+/**
+  * @brief  The application entry point.
+  *
+  * @retval None
+  */
 int main(void)
 {
-
   /* USER CODE BEGIN 1 */
 
   /* USER CODE END 1 */
@@ -444,20 +360,9 @@ int main(void)
   MX_USART2_UART_Init();
   MX_TIM4_Init();
   MX_TIM3_Init();
-  MX_TIM2_Init();
-  MX_TIM5_Init();
-
   /* USER CODE BEGIN 2 */
-  __HAL_TIM_SetCounter(&htim2, 25000);
-  __HAL_TIM_SetCounter(&htim5, 25000);
-  __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_1, 250);
-  __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_2, 250);
-  
-  HAL_TIM_Base_Start(&htim2);
-  HAL_TIM_Base_Start(&htim5);
   HAL_TIM_Base_Start_IT(&htim3);
-  HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_1);
-  HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_2);
+  HAL_TIM_Base_Start_IT(&htim4);
   
   HAL_UART_Receive_DMA(&huart2, &u8_rec_data,1);
   /* USER CODE END 2 */
@@ -469,23 +374,16 @@ int main(void)
   /* USER CODE END WHILE */
 
   /* USER CODE BEGIN 3 */
-//    i16_counter = __HAL_TIM_GetCounter(&htim2);
-//    __HAL_TIM_SetCounter(&htim2, 0);
-//    
-//    __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_1, 70);
-//    __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_2, 70);
-//    
-//    sprintf((char*) ui8_BufLog,"%d \t \n\r", i16_counter);
-//    UART_Log(ui8_BufLog);
-    
-//    HAL_Delay(20);
+
   }
   /* USER CODE END 3 */
 
 }
 
-/** System Clock Configuration
-*/
+/**
+  * @brief System Clock Configuration
+  * @retval None
+  */
 void SystemClock_Config(void)
 {
 
@@ -539,41 +437,6 @@ void SystemClock_Config(void)
   HAL_NVIC_SetPriority(SysTick_IRQn, 0, 0);
 }
 
-/* TIM2 init function */
-static void MX_TIM2_Init(void)
-{
-
-  TIM_Encoder_InitTypeDef sConfig;
-  TIM_MasterConfigTypeDef sMasterConfig;
-
-  htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 0;
-  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 50000;
-  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  sConfig.EncoderMode = TIM_ENCODERMODE_TI12;
-  sConfig.IC1Polarity = TIM_ICPOLARITY_RISING;
-  sConfig.IC1Selection = TIM_ICSELECTION_DIRECTTI;
-  sConfig.IC1Prescaler = TIM_ICPSC_DIV1;
-  sConfig.IC1Filter = 15;
-  sConfig.IC2Polarity = TIM_ICPOLARITY_RISING;
-  sConfig.IC2Selection = TIM_ICSELECTION_DIRECTTI;
-  sConfig.IC2Prescaler = TIM_ICPSC_DIV1;
-  sConfig.IC2Filter = 15;
-  if (HAL_TIM_Encoder_Init(&htim2, &sConfig) != HAL_OK)
-  {
-    _Error_Handler(__FILE__, __LINE__);
-  }
-
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
-  {
-    _Error_Handler(__FILE__, __LINE__);
-  }
-
-}
-
 /* TIM3 init function */
 static void MX_TIM3_Init(void)
 {
@@ -612,12 +475,11 @@ static void MX_TIM4_Init(void)
 
   TIM_ClockConfigTypeDef sClockSourceConfig;
   TIM_MasterConfigTypeDef sMasterConfig;
-  TIM_OC_InitTypeDef sConfigOC;
 
   htim4.Instance = TIM4;
-  htim4.Init.Prescaler = 42;
+  htim4.Init.Prescaler = 84;
   htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim4.Init.Period = 499;
+  htim4.Init.Period = 99;
   htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   if (HAL_TIM_Base_Init(&htim4) != HAL_OK)
   {
@@ -630,65 +492,9 @@ static void MX_TIM4_Init(void)
     _Error_Handler(__FILE__, __LINE__);
   }
 
-  if (HAL_TIM_PWM_Init(&htim4) != HAL_OK)
-  {
-    _Error_Handler(__FILE__, __LINE__);
-  }
-
   sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
   if (HAL_TIMEx_MasterConfigSynchronization(&htim4, &sMasterConfig) != HAL_OK)
-  {
-    _Error_Handler(__FILE__, __LINE__);
-  }
-
-  sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 0;
-  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
-  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  if (HAL_TIM_PWM_ConfigChannel(&htim4, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
-  {
-    _Error_Handler(__FILE__, __LINE__);
-  }
-
-  if (HAL_TIM_PWM_ConfigChannel(&htim4, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
-  {
-    _Error_Handler(__FILE__, __LINE__);
-  }
-
-  HAL_TIM_MspPostInit(&htim4);
-
-}
-
-/* TIM5 init function */
-static void MX_TIM5_Init(void)
-{
-
-  TIM_Encoder_InitTypeDef sConfig;
-  TIM_MasterConfigTypeDef sMasterConfig;
-
-  htim5.Instance = TIM5;
-  htim5.Init.Prescaler = 0;
-  htim5.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim5.Init.Period = 50000;
-  htim5.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  sConfig.EncoderMode = TIM_ENCODERMODE_TI12;
-  sConfig.IC1Polarity = TIM_ICPOLARITY_RISING;
-  sConfig.IC1Selection = TIM_ICSELECTION_DIRECTTI;
-  sConfig.IC1Prescaler = TIM_ICPSC_DIV1;
-  sConfig.IC1Filter = 15;
-  sConfig.IC2Polarity = TIM_ICPOLARITY_RISING;
-  sConfig.IC2Selection = TIM_ICSELECTION_DIRECTTI;
-  sConfig.IC2Prescaler = TIM_ICPSC_DIV1;
-  sConfig.IC2Filter = 15;
-  if (HAL_TIM_Encoder_Init(&htim5, &sConfig) != HAL_OK)
-  {
-    _Error_Handler(__FILE__, __LINE__);
-  }
-
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim5, &sMasterConfig) != HAL_OK)
   {
     _Error_Handler(__FILE__, __LINE__);
   }
@@ -757,6 +563,9 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15, GPIO_PIN_RESET);
 
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6|GPIO_PIN_7, GPIO_PIN_RESET);
+
   /*Configure GPIO pins : PE7 PE9 */
   GPIO_InitStruct.Pin = GPIO_PIN_7|GPIO_PIN_9;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
@@ -771,6 +580,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
+  /*Configure GPIO pins : PB6 PB7 */
+  GPIO_InitStruct.Pin = GPIO_PIN_6|GPIO_PIN_7;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
 }
 
 /* USER CODE BEGIN 4 */
@@ -779,45 +595,43 @@ static void MX_GPIO_Init(void)
 
 /**
   * @brief  This function is executed in case of error occurrence.
-  * @param  None
+  * @param  file: The file name as string.
+  * @param  line: The line in file as a number.
   * @retval None
   */
-void _Error_Handler(char * file, int line)
+void _Error_Handler(char *file, int line)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
   while(1) 
   {
   }
-  /* USER CODE END Error_Handler_Debug */ 
+  /* USER CODE END Error_Handler_Debug */
 }
 
-#ifdef USE_FULL_ASSERT
-
+#ifdef  USE_FULL_ASSERT
 /**
-   * @brief Reports the name of the source file and the source line number
-   * where the assert_param error has occurred.
-   * @param file: pointer to the source file name
-   * @param line: assert_param error line source number
-   * @retval None
-   */
+  * @brief  Reports the name of the source file and the source line number
+  *         where the assert_param error has occurred.
+  * @param  file: pointer to the source file name
+  * @param  line: assert_param error line source number
+  * @retval None
+  */
 void assert_failed(uint8_t* file, uint32_t line)
-{
+{ 
   /* USER CODE BEGIN 6 */
   /* User can add his own implementation to report the file name and line number,
     ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
   /* USER CODE END 6 */
-
 }
-
-#endif
-
-/**
-  * @}
-  */ 
+#endif /* USE_FULL_ASSERT */
 
 /**
   * @}
-*/ 
+  */
+
+/**
+  * @}
+  */
 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

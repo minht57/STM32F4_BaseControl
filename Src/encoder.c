@@ -26,7 +26,6 @@ void Encoder_CalVelocity(TARGET_VELOCITY_PARAMETERS * TargetVelocity)
   TargetVelocity->i16_Pulse_Right = (int16_t)(TargetVelocity->ratio * f_AngleVelocityRight * PULSE_ENCODER_PER_ROUND / (2 * PI) * T_SAMPLE);
 }
 
-
 void Encoder_ReCalVelocity(TARGET_VELOCITY_PARAMETERS * ResultVelocity)
 {
 //  static float f_AngleVelocityLeft;
@@ -54,3 +53,21 @@ void Encoder_ReCalVelocity(TARGET_VELOCITY_PARAMETERS * ResultVelocity)
 //  VelocityDest->i16_Pulse_Left = VelocitySrc->i16_Pulse_Left;
 //  VelocityDest->i16_Pulse_Right = VelocitySrc->i16_Pulse_Right;
 //}
+
+void Step_CalVelocity(TARGET_VELOCITY_PARAMETERS * TargetVelocity)
+{
+  static float f_VelocityLeft;
+  static float f_VelocityRight;
+  
+  f_VelocityLeft = (2 * TargetVelocity->linear_velocity + TargetVelocity->angle_velocity * TargetVelocity->length) / (2);
+  f_VelocityRight = (2 * TargetVelocity->linear_velocity - TargetVelocity->angle_velocity * TargetVelocity->length) / (2);
+  
+  /*
+  2*pi    ----  200     : Step 1.8degree - 200 pulse/round
+  v*20ms  ----  x pusle : 20ms - sample time
+  x pulse ---- 20ms
+  1 edge = 20/(2*x)     : 1 pulse has 2 edges.
+  */
+  TargetVelocity->i16_Pulse_Left = (T_SAMPLE/T_EDGE) /(2 * (f_VelocityLeft * T_SAMPLE * PULSE_STEP_PER_ROUND / (2 * PI * TargetVelocity->radius)));
+  TargetVelocity->i16_Pulse_Right = (T_SAMPLE/T_EDGE) /(2 * (f_VelocityRight * T_SAMPLE * PULSE_STEP_PER_ROUND / (2 * PI * TargetVelocity->radius)));
+}
