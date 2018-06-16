@@ -83,7 +83,7 @@ LPF_PARAMETERS LPF_EncoderRight = {.counter = 0, .result = 0, .alpha = 0.8};
 TARGET_VELOCITY_PARAMETERS Target_Velocity = {.angle_velocity = 0, .linear_velocity = 0,
                                               .i16_Pulse_Left = 0, .i16_Pulse_Right = 0,
                                               .radius = 0.035, .length = (0.3*1), .ratio = 1};
-TARGET_VELOCITY_PARAMETERS Result_Velocity = {.angle_velocity = 0, .linear_velocity = 0,
+TARGET_VELOCITY_PARAMETERS Execute_Velocity = {.angle_velocity = 0, .linear_velocity = 0,
                                               .i16_Pulse_Left = 0, .i16_Pulse_Right = 0,
                                               .radius = 0.035, .length = (0.3*1), .ratio = 1};
 /* USER CODE END PV */
@@ -125,23 +125,56 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     else
     {
       i32_countZeroCmd = 0;
+      HAL_GPIO_WritePin(GPIOE, GPIO_PIN_11, GPIO_PIN_RESET);
+      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
     }
     
     if(i32_countZeroCmd > 50)
     {
-      Target_Velocity.linear_velocity = 0.05;
+      i32_countZeroCmd = 50;
+      Target_Velocity.linear_velocity = 0;
       Target_Velocity.angle_velocity = 0;
-      Step_CalVelocity(&Target_Velocity);
+//      Step_CalVelocity(&Target_Velocity);
+      if((Execute_Velocity.linear_velocity == 0) && (Execute_Velocity.angle_velocity == 0))
+      {
+        HAL_GPIO_WritePin(GPIOE, GPIO_PIN_11, GPIO_PIN_SET);
+        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET);
+      }
     }
+    
+    if(Execute_Velocity.linear_velocity + INC_VEL < Target_Velocity.linear_velocity)
+    {
+      Execute_Velocity.linear_velocity += INC_VEL;
+    }
+    else if(Execute_Velocity.linear_velocity - INC_VEL > Target_Velocity.linear_velocity)
+    {
+      Execute_Velocity.linear_velocity -= INC_VEL;
+    }
+    else
+    {
+      Execute_Velocity.linear_velocity = Target_Velocity.linear_velocity;
+    }
+    
+    if(Execute_Velocity.angle_velocity + INC_ANG < Target_Velocity.angle_velocity)
+    {
+      Execute_Velocity.angle_velocity += INC_ANG;
+    }
+    else if(Execute_Velocity.angle_velocity - INC_ANG > Target_Velocity.angle_velocity)
+    {
+      Execute_Velocity.angle_velocity -= INC_ANG;
+    }
+    else
+    {
+      Execute_Velocity.angle_velocity = Target_Velocity.angle_velocity;
+    }
+    
+    Step_CalVelocity(&Execute_Velocity);
     
     if(count_send > 10)
     {
       count_send = 0;
+      HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_13);
       
-      sprintf((char*) ui8_BufLog,"%d \t %d \t %d \t %d\n\r",(int16_t)(Target_Velocity.linear_velocity*1000),
-                                                            (int16_t)(Result_Velocity.linear_velocity*1000),
-                                                            (int16_t)(Target_Velocity.angle_velocity*1000),
-                                                            (int16_t)(Result_Velocity.angle_velocity*1000));
   //    sprintf((char*) ui8_BufLog,"%f \t %f \t %f \t %f\n\r",Target_Velocity.linear_velocity*1000,Result_Velocity.linear_velocity*1000,
   //                                                          Target_Velocity.angle_velocity*1000, Result_Velocity.angle_velocity*1000);
 //      sprintf((char*) ui8_BufLog,"%d \t %d \t %d \t %d\n\r",(int16_t)(Target_Velocity.linear_velocity*1000),
@@ -162,11 +195,11 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   else if (htim->Instance == htim4.Instance)
   {
     if (count_reset >= 1000)
-    {      
-      if(Target_Velocity.i16_Pulse_Left > 0)
+    {
+      if(Execute_Velocity.i16_Pulse_Left > 0)
       {
         HAL_GPIO_WritePin(GPIOE, GPIO_PIN_7, STEP_FORWARD_LEFT);
-        if(i16_CountPulseLeft > Target_Velocity.i16_Pulse_Left)
+        if(i16_CountPulseLeft > Execute_Velocity.i16_Pulse_Left)
         {
           i16_CountPulseLeft = 0;
           HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_6);
@@ -176,10 +209,10 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
           i16_CountPulseLeft++;
         }
       }
-      else if(Target_Velocity.i16_Pulse_Left < 0)
+      else if(Execute_Velocity.i16_Pulse_Left < 0)
       {
         HAL_GPIO_WritePin(GPIOE, GPIO_PIN_7, STEP_BACK_LEFT);
-        if(i16_CountPulseLeft > -Target_Velocity.i16_Pulse_Left)
+        if(i16_CountPulseLeft > -Execute_Velocity.i16_Pulse_Left)
         {
           i16_CountPulseLeft = 0;
           HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_6);
@@ -194,10 +227,10 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
         HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6, 0);
       }
       
-      if(Target_Velocity.i16_Pulse_Right > 0)
+      if(Execute_Velocity.i16_Pulse_Right > 0)
       {
         HAL_GPIO_WritePin(GPIOE, GPIO_PIN_9, STEP_FORWARD_RIGHT);
-        if(i16_CountPulseRight > Target_Velocity.i16_Pulse_Right)
+        if(i16_CountPulseRight > Execute_Velocity.i16_Pulse_Right)
         {
           i16_CountPulseRight = 0;
           HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_7);
@@ -207,10 +240,10 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
           i16_CountPulseRight++;
         }
       }
-      else if(Target_Velocity.i16_Pulse_Right < 0)
+      else if(Execute_Velocity.i16_Pulse_Right < 0)
       {
         HAL_GPIO_WritePin(GPIOE, GPIO_PIN_9, STEP_BACK_RIGHT);
-        if(i16_CountPulseRight > -Target_Velocity.i16_Pulse_Right)
+        if(i16_CountPulseRight > -Execute_Velocity.i16_Pulse_Right)
         {
           i16_CountPulseRight = 0;
           HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_7);
@@ -222,7 +255,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
       }
       else
       {
-        HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, 0);
+        HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, GPIO_PIN_RESET);
       }
     }
     else 
@@ -273,7 +306,6 @@ void UART_C1101_Read(uint8_t * buf, uint16_t len)
 int8_t UART_GetCmd(void)
 {
   static int8_t Buf_temp[20];
-  static int8_t i8_HaveCmd = 0;
   static int8_t i8_InProcessing = 0;
   static int8_t i8_Idx = 0;
   static uint8_t u8_Temp;
@@ -307,11 +339,11 @@ int8_t UART_GetCmd(void)
       {
         Target_Velocity.angle_velocity = -3;
       }
-      Step_CalVelocity(&Target_Velocity);
+//      Step_CalVelocity(&Target_Velocity);
       HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_15);
       return 1;
     }
-    HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_13);
+//    HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_13);
     if(i8_InProcessing)
     {
       Buf_temp[i8_Idx++] = u8_Temp;
@@ -477,7 +509,7 @@ static void MX_TIM4_Init(void)
   TIM_MasterConfigTypeDef sMasterConfig;
 
   htim4.Instance = TIM4;
-  htim4.Init.Prescaler = 84;
+  htim4.Init.Prescaler = 42;
   htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim4.Init.Period = 99;
   htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
@@ -558,10 +590,13 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_7|GPIO_PIN_9, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_7|GPIO_PIN_9|GPIO_PIN_11, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6|GPIO_PIN_7, GPIO_PIN_RESET);
@@ -573,12 +608,26 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
+  /*Configure GPIO pin : PE11 */
+  GPIO_InitStruct.Pin = GPIO_PIN_11;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+
   /*Configure GPIO pins : PD12 PD13 PD14 PD15 */
   GPIO_InitStruct.Pin = GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PA8 */
+  GPIO_InitStruct.Pin = GPIO_PIN_8;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PB6 PB7 */
   GPIO_InitStruct.Pin = GPIO_PIN_6|GPIO_PIN_7;

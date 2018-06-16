@@ -16,13 +16,13 @@
 
 #define PULSE_ENCODER_PER_ROUND   (3250*4)
 #define T_SAMPLE                  (0.02)
-#define PULSE_STEP_PER_ROUND      (200)
+#define PULSE_STEP_PER_ROUND      (200*16)
 #define T_EDGE                    (0.0001)
 
-#define STEP_FORWARD_LEFT         (1)
-#define STEP_BACK_LEFT            (0)
-#define STEP_FORWARD_RIGHT        (0)
-#define STEP_BACK_RIGHT           (1)
+#define STEP_FORWARD_LEFT         (GPIO_PIN_SET)
+#define STEP_BACK_LEFT            (GPIO_PIN_RESET)
+#define STEP_FORWARD_RIGHT        (GPIO_PIN_RESET)
+#define STEP_BACK_RIGHT           (GPIO_PIN_SET)
 
 typedef struct {
   int16_t counter;

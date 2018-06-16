@@ -57,7 +57,8 @@
 /* #define USE_FULL_ASSERT    1U */
 
 /* USER CODE BEGIN Private defines */
-
+#define   INC_VEL   (0.01)
+#define   INC_ANG   (0.01)
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

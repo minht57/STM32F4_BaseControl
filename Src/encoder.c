@@ -59,8 +59,8 @@ void Step_CalVelocity(TARGET_VELOCITY_PARAMETERS * TargetVelocity)
   static float f_VelocityLeft;
   static float f_VelocityRight;
   
-  f_VelocityLeft = (2 * TargetVelocity->linear_velocity + TargetVelocity->angle_velocity * TargetVelocity->length) / (2);
-  f_VelocityRight = (2 * TargetVelocity->linear_velocity - TargetVelocity->angle_velocity * TargetVelocity->length) / (2);
+  f_VelocityLeft = (2 * TargetVelocity->linear_velocity - TargetVelocity->angle_velocity * TargetVelocity->length) / (2);
+  f_VelocityRight = (2 * TargetVelocity->linear_velocity + TargetVelocity->angle_velocity * TargetVelocity->length) / (2);
   
   /*
   2*pi    ----  200     : Step 1.8degree - 200 pulse/round
